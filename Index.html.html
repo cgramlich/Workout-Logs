@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#09090b" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Strength Log" />
+<title>Strength Log</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2220%22%20fill%3D%22%23f97316%22%2F%3E%3Ctext%20x%3D%2250%22%20y%3D%2272%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2262%22%20font-weight%3D%22800%22%20text-anchor%3D%22middle%22%20fill%3D%22%2309090b%22%3ES%3C%2Ftext%3E%3C%2Fsvg%3E" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2220%22%20fill%3D%22%23f97316%22%2F%3E%3Ctext%20x%3D%2250%22%20y%3D%2272%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2262%22%20font-weight%3D%22800%22%20text-anchor%3D%22middle%22%20fill%3D%22%2309090b%22%3ES%3C%2Ftext%3E%3C%2Fsvg%3E" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html, body { margin: 0; background: #09090b; }
+  #boot { color: #71717a; font-family: ui-monospace, SFMono-Regular, monospace;
+          font-size: 12px; letter-spacing: .25em; text-transform: uppercase;
+          min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+<div id="root"><div id="boot">Loading...</div></div>
+<script>
+const {
+  useState,
+  useEffect,
+  useRef
+} = React;
+function Icon({
+  size = 16,
+  className = '',
+  children
+}) {
+  return /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    className: className
+  }, children);
+}
+function ChevronDown(p) {
+  return /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+    d: "m6 9 6 6 6-6"
+  }));
+}
+function Plus(p) {
+  return /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+    d: "M5 12h14"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M12 5v14"
+  }));
+}
+function X(p) {
+  return /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+    d: "M18 6 6 18"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "m6 6 12 12"
+  }));
+}
+function Copy(p) {
+  return /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("rect", {
+    x: "9",
+    y: "9",
+    width: "13",
+    height: "13",
+    rx: "2"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+  }));
+}
+function Trash2(p) {
+  return /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+    d: "M3 6h18"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: "10",
+    x2: "10",
+    y1: "11",
+    y2: "17"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: "14",
+    x2: "14",
+    y1: "11",
+    y2: "17"
+  }));
+}
+function Check(p) {
+  return /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+    d: "M20 6 9 17l-5-5"
+  }));
+}
+function RotateCcw(p) {
+  return /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+    d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M3 3v5h5"
+  }));
+}
+if (!window.storage) {
+  window.storage = {
+    get: function (key) {
+      try {
+        var v = localStorage.getItem(key);
+        if (v === null) return Promise.reject(new Error('key not found: ' + key));
+        return Promise.resolve({
+          key: key,
+          value: v,
+          shared: false
+        });
+      } catch (err) {
+        console.error('[STORAGE] get failed', err);
+        return Promise.reject(err);
+      }
+    },
+    set: function (key, value) {
+      try {
+        localStorage.setItem(key, value);
+        return Promise.resolve({
+          key: key,
+          value: value,
+          shared: false
+        });
+      } catch (err) {
+        console.error('[STORAGE] set failed', err);
+        return Promise.reject(err);
+      }
+    },
+    delete: function (key) {
+      localStorage.removeItem(key);
+      return Promise.resolve({
+        key: key,
+        deleted: true,
+        shared: false
+      });
+    },
+    list: function (prefix) {
+      var keys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!prefix || k && k.indexOf(prefix) === 0) keys.push(k);
+      }
+      return Promise.resolve({
+        keys: keys,
+        shared: false
+      });
+    }
+  };
+}
+
+/* =========================================================================
+   Strength & Power Log
+   Multi-location workout tracker for the user's two gyms:
+     - River Crossing Club (Spring Branch, TX) -- Life Fitness equipment
+     - Home Gym (Dallas, TX) -- IM2000
+
+   - Data persists across sessions via window.storage (personal scope).
+   - Notation follows the user's own convention: WEIGHT x REPS (e.g. 75x16).
+   - Body-weight power drills (throws, jumps) log reps only (e.g. 5, 5, 4).
+   - "fail" can be kept in the reps field (e.g. 30x4fail) to mark a set
+     taken to failure, matching the user's own notes.
+   - Pre-loaded with the RCC + Home libraries, loadable routines, and the
+     user's logged workout history.
+   ========================================================================= */
+
+const STORAGE_KEY = 'rcc-strength-log-v1';
+const CATEGORY_ORDER = ['Back', 'Chest', 'Shoulders', 'Legs', 'Core', 'Arms', 'Golf Power', 'Cardio'];
+
+/* --- The two training locations --- */
+const SEED_LOCATIONS = [{
+  id: 'rcc',
+  name: 'River Crossing Club'
+}, {
+  id: 'home',
+  name: 'Home Gym (Dallas)'
+}];
+
+/* --- Exercise library.
+   location: which gym the exercise belongs to.
+   noWeight: true for body-weight power drills logged as reps only.        --- */
+const SEED_EXERCISES = [
+// River Crossing -- Life Fitness machines and free weights
+{
+  id: 'pulldown',
+  name: 'Lat Pulldown',
+  cat: 'Back',
+  location: 'rcc',
+  equip: 'Pulldown / Row machine',
+  settingDefault: ''
+}, {
+  id: 'seated-row',
+  name: 'Seated Row',
+  cat: 'Back',
+  location: 'rcc',
+  equip: 'Pulldown / Row machine',
+  settingDefault: ''
+}, {
+  id: 'db-row',
+  name: 'Single-Arm DB Row',
+  cat: 'Back',
+  location: 'rcc',
+  equip: 'Dumbbells',
+  settingDefault: ''
+}, {
+  id: 'chest-press',
+  name: 'Chest Press',
+  cat: 'Chest',
+  location: 'rcc',
+  equip: 'Chest / Incline / Shoulder Press',
+  settingDefault: ''
+}, {
+  id: 'incline-press',
+  name: 'Incline Press',
+  cat: 'Chest',
+  location: 'rcc',
+  equip: 'Chest / Incline / Shoulder Press',
+  settingDefault: 'Arm 2'
+}, {
+  id: 'pec-fly',
+  name: 'Pectoral Fly',
+  cat: 'Chest',
+  location: 'rcc',
+  equip: 'Pec Fly / Rear Delt machine',
+  settingDefault: 'Seat 3, Arm 2'
+}, {
+  id: 'db-chest-press',
+  name: 'DB Chest Press',
+  cat: 'Chest',
+  location: 'rcc',
+  equip: 'Dumbbells',
+  settingDefault: ''
+}, {
+  id: 'shoulder-press',
+  name: 'Shoulder Press',
+  cat: 'Shoulders',
+  location: 'rcc',
+  equip: 'Chest / Incline / Shoulder Press',
+  settingDefault: 'Arm 4'
+}, {
+  id: 'rear-delt',
+  name: 'Rear Deltoid',
+  cat: 'Shoulders',
+  location: 'rcc',
+  equip: 'Pec Fly / Rear Delt machine',
+  settingDefault: 'Seat 3, Arm 0'
+}, {
+  id: 'leg-press',
+  name: 'Leg Press',
+  cat: 'Legs',
+  location: 'rcc',
+  equip: 'Leg Press machine',
+  settingDefault: 'Seat 4'
+}, {
+  id: 'leg-curl',
+  name: 'Seated Leg Curl',
+  cat: 'Legs',
+  location: 'rcc',
+  equip: 'Leg Curl / Extension machine',
+  settingDefault: 'Seat 3 / Pad L / ROM 1'
+}, {
+  id: 'leg-ext',
+  name: 'Seated Leg Extension',
+  cat: 'Legs',
+  location: 'rcc',
+  equip: 'Leg Curl / Extension machine',
+  settingDefault: 'Seat 3 / Pad L / ROM 1'
+}, {
+  id: 'squat-smith',
+  name: 'Squat (Smith / Rack)',
+  cat: 'Legs',
+  location: 'rcc',
+  equip: 'Smith machine / squat rack',
+  settingDefault: ''
+}, {
+  id: 'rdl',
+  name: 'Romanian Deadlift',
+  cat: 'Legs',
+  location: 'rcc',
+  equip: 'Dumbbells / barbell',
+  settingDefault: ''
+}, {
+  id: 'abdominal',
+  name: 'Abdominal',
+  cat: 'Core',
+  location: 'rcc',
+  equip: 'Abdominal / Back Extension',
+  settingDefault: 'Seat 8'
+}, {
+  id: 'back-ext',
+  name: 'Back Extension',
+  cat: 'Core',
+  location: 'rcc',
+  equip: 'Abdominal / Back Extension',
+  settingDefault: 'Seat 8'
+}, {
+  id: 'db-curl',
+  name: 'DB Bicep Curl',
+  cat: 'Arms',
+  location: 'rcc',
+  equip: 'Dumbbells',
+  settingDefault: ''
+}, {
+  id: 'tricep-rope',
+  name: 'Tricep Rope Pulldown',
+  cat: 'Arms',
+  location: 'rcc',
+  equip: 'Cable station',
+  settingDefault: 'Height 2'
+},
+// River Crossing -- Golf Power block
+{
+  id: 'mb-rot-throw',
+  name: 'Med-Ball Rotational Throw',
+  cat: 'Golf Power',
+  location: 'rcc',
+  equip: 'Med ball + wall',
+  settingDefault: '',
+  noWeight: true
+}, {
+  id: 'mb-slam',
+  name: 'Med-Ball Overhead Slam',
+  cat: 'Golf Power',
+  location: 'rcc',
+  equip: 'Med ball',
+  settingDefault: '',
+  noWeight: true
+}, {
+  id: 'box-jump',
+  name: 'Box / Vertical Jump',
+  cat: 'Golf Power',
+  location: 'rcc',
+  equip: 'Box / open floor',
+  settingDefault: '',
+  noWeight: true
+}, {
+  id: 'broad-jump',
+  name: 'Broad Jump',
+  cat: 'Golf Power',
+  location: 'rcc',
+  equip: 'Open floor',
+  settingDefault: '',
+  noWeight: true
+}, {
+  id: 'cable-chop',
+  name: 'Cable Rotational Chop',
+  cat: 'Golf Power',
+  location: 'rcc',
+  equip: 'Cable station',
+  settingDefault: 'Height 3'
+}, {
+  id: 'pallof',
+  name: 'Cable Pallof Press',
+  cat: 'Golf Power',
+  location: 'rcc',
+  equip: 'Cable station',
+  settingDefault: 'Height 4'
+}, {
+  id: 'explosive-lp',
+  name: 'Explosive Leg Press',
+  cat: 'Golf Power',
+  location: 'rcc',
+  equip: 'Leg Press machine',
+  settingDefault: 'Seat 4'
+},
+// River Crossing -- cardio + mobility
+{
+  id: 'elliptical',
+  name: 'Elliptical Trainer',
+  cat: 'Cardio',
+  location: 'rcc',
+  equip: 'Life Fitness Elliptical',
+  settingDefault: 'Level 3',
+  cardio: true
+}, {
+  id: 'arc-trainer',
+  name: 'Arc Trainer',
+  cat: 'Cardio',
+  location: 'rcc',
+  equip: 'Life Fitness Arc Trainer',
+  settingDefault: '',
+  cardio: true
+}, {
+  id: 'stretch',
+  name: 'Stretch / Mobility',
+  cat: 'Cardio',
+  location: 'rcc',
+  equip: 'Stretch area / TrueStretch cage',
+  settingDefault: '',
+  cardio: true
+},
+// Home Gym (Dallas) -- IM2000 and dumbbells
+{
+  id: 'squat-im2000',
+  name: 'Squat (IM2000)',
+  cat: 'Legs',
+  location: 'home',
+  equip: 'IM2000 home gym',
+  settingDefault: ''
+}, {
+  id: 'db-bench',
+  name: 'DB Bench',
+  cat: 'Chest',
+  location: 'home',
+  equip: 'Dumbbells + bench',
+  settingDefault: ''
+}, {
+  id: 'db-st-curl',
+  name: 'DB Standing Curl',
+  cat: 'Arms',
+  location: 'home',
+  equip: 'Dumbbells',
+  settingDefault: ''
+}, {
+  id: 'db-bench-tri',
+  name: 'DB Bench Tricep Extension',
+  cat: 'Arms',
+  location: 'home',
+  equip: 'Dumbbells + bench',
+  settingDefault: ''
+}];
+
+/* --- Loadable routines (templates). exerciseIds are expanded into the draft. --- */
+const SEED_TEMPLATES = [{
+  id: 'tpl-circuit',
+  name: 'Full Machine Circuit',
+  locationId: 'rcc',
+  exerciseIds: ['pulldown', 'seated-row', 'pec-fly', 'rear-delt', 'leg-press', 'abdominal', 'back-ext', 'incline-press', 'shoulder-press', 'leg-curl', 'leg-ext', 'db-chest-press', 'db-curl', 'tricep-rope', 'elliptical']
+}, {
+  id: 'tpl-golf-a',
+  name: 'Golf Power Day A',
+  locationId: 'rcc',
+  exerciseIds: ['mb-rot-throw', 'box-jump', 'squat-smith', 'rdl', 'pallof']
+}, {
+  id: 'tpl-golf-b',
+  name: 'Golf Power Day B',
+  locationId: 'rcc',
+  exerciseIds: ['mb-slam', 'cable-chop', 'leg-press', 'db-row', 'incline-press', 'rear-delt']
+}];
+
+/* --- Build one set object. Weight and reps are kept as strings so values
+   like "67.5" and the user's "8fail" notation survive intact. --- */
+function s(weight, reps) {
+  return {
+    weight: String(weight),
+    reps: String(reps)
+  };
+}
+// A single blank set: used for exercises the user listed without numbers.
+function blankSet() {
+  return [{
+    weight: '',
+    reps: ''
+  }];
+}
+
+/* --- The user's logged workout history, transcribed from their notes. --- */
+function buildSeedWorkouts() {
+  return [{
+    id: 'seed-2025-09-19',
+    date: '2025-09-19',
+    label: 'DB Bench',
+    locationId: 'home',
+    entries: [{
+      exerciseId: 'db-bench',
+      settings: '',
+      sets: [s(25, 20), s(30, 16), s(35, 12), s(40, 8), s(45, 4)]
+    }]
+  }, {
+    id: 'seed-2025-11-14',
+    date: '2025-11-14',
+    label: 'DB Bench + Arms',
+    locationId: 'home',
+    entries: [{
+      exerciseId: 'db-bench',
+      settings: '',
+      sets: [s(25, 20), s(30, 16), s(35, 12), s(40, 8), s(45, 6)]
+    }, {
+      exerciseId: 'db-st-curl',
+      settings: '',
+      sets: [s(10, 20), s(15, 16), s(20, 12), s(25, '8fail'), s(30, '4fail')]
+    }, {
+      exerciseId: 'db-bench-tri',
+      settings: '',
+      sets: [s(10, 20), s(15, 16), s(20, 12), s(25, 8), s(30, '4fail')]
+    }]
+  }, {
+    id: 'seed-2026-04-27',
+    date: '2026-04-27',
+    label: 'RCC Circuit',
+    locationId: 'rcc',
+    entries: [{
+      exerciseId: 'pulldown',
+      settings: '',
+      sets: [s(75, 16)]
+    }, {
+      exerciseId: 'seated-row',
+      settings: '',
+      sets: blankSet()
+    }, {
+      exerciseId: 'pec-fly',
+      settings: '',
+      sets: [s(60, 20)]
+    }, {
+      exerciseId: 'rear-delt',
+      settings: '',
+      sets: blankSet()
+    }, {
+      exerciseId: 'leg-press',
+      settings: 'Seat 4',
+      sets: [s(75, 16)]
+    }, {
+      exerciseId: 'abdominal',
+      settings: 'Seat 8',
+      sets: [s(60, 25)]
+    }, {
+      exerciseId: 'back-ext',
+      settings: '',
+      sets: blankSet()
+    }, {
+      exerciseId: 'chest-press',
+      settings: '',
+      sets: blankSet()
+    }, {
+      exerciseId: 'incline-press',
+      settings: '',
+      sets: [s(75, 16)]
+    }, {
+      exerciseId: 'leg-curl',
+      settings: 'Seat 1',
+      sets: [s(60, 16)]
+    }, {
+      exerciseId: 'leg-ext',
+      settings: 'Seat 2',
+      sets: [s(45, 16)]
+    }, {
+      exerciseId: 'db-curl',
+      settings: '',
+      sets: [s(15, 20)]
+    }, {
+      exerciseId: 'tricep-rope',
+      settings: '',
+      sets: [s(32.5, 16)]
+    }, {
+      exerciseId: 'arc-trainer',
+      settings: '',
+      sets: [],
+      cardioText: '10 min, 6 resistance'
+    }, {
+      exerciseId: 'stretch',
+      settings: '',
+      sets: [],
+      cardioText: ''
+    }]
+  }, {
+    id: 'seed-2026-05-19',
+    date: '2026-05-19',
+    label: 'Squat + Bench',
+    locationId: 'home',
+    entries: [{
+      exerciseId: 'squat-im2000',
+      settings: '',
+      sets: [s(0, 25), s(10, 16), s(20, 12), s(30, 8)]
+    }, {
+      exerciseId: 'db-bench',
+      settings: '',
+      sets: [s(25, 20), s(30, 16), s(35, 12), s(40, 8), s(45, 6)]
+    }]
+  }, {
+    id: 'seed-2026-05-23',
+    date: '2026-05-23',
+    label: 'RCC Circuit',
+    locationId: 'rcc',
+    entries: [{
+      exerciseId: 'pulldown',
+      settings: '',
+      sets: [s(75, 16)]
+    }, {
+      exerciseId: 'seated-row',
+      settings: '',
+      sets: [s(75, 16)]
+    }, {
+      exerciseId: 'pec-fly',
+      settings: 'Seat 3, Arm 2',
+      sets: [s(67.5, 16)]
+    }, {
+      exerciseId: 'rear-delt',
+      settings: 'Seat 3, Arm 0',
+      sets: [s(67.5, 16)]
+    }, {
+      exerciseId: 'leg-press',
+      settings: 'Seat 4',
+      sets: [s(75, 16)]
+    }, {
+      exerciseId: 'abdominal',
+      settings: 'Seat 8',
+      sets: [s(60, 25)]
+    }, {
+      exerciseId: 'back-ext',
+      settings: 'Seat 8',
+      sets: [s(60, 25)]
+    }, {
+      exerciseId: 'incline-press',
+      settings: 'Arm 2',
+      sets: [s(75, 16)]
+    }, {
+      exerciseId: 'shoulder-press',
+      settings: 'Arm 4',
+      sets: [s(15, 12)]
+    }, {
+      exerciseId: 'leg-curl',
+      settings: 'Seat 3, L, Ext 1',
+      sets: [s(60, 16)]
+    }, {
+      exerciseId: 'leg-ext',
+      settings: 'Seat 3, L, Ext 1',
+      sets: [s(45, 16)]
+    }, {
+      exerciseId: 'db-chest-press',
+      settings: '',
+      sets: [s(30, 16)]
+    }, {
+      exerciseId: 'db-curl',
+      settings: '',
+      sets: [s(15, 20), s(25, 6)]
+    }, {
+      exerciseId: 'tricep-rope',
+      settings: 'Height 2',
+      sets: [s(32.5, 15), s(32.5, 9)]
+    }, {
+      exerciseId: 'elliptical',
+      settings: 'Level 3',
+      sets: [],
+      cardioText: '10 min, Level 3, 57-77 rpm'
+    }]
+  }];
+}
+
+/* --- Small utilities --- */
+function makeId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+function todayISO() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + mm + '-' + dd;
+}
+
+// Convert stored ISO date (YYYY-MM-DD) to the user's M/D/YY display style.
+function formatDate(iso) {
+  if (!iso || iso.indexOf('-') === -1) return iso || '';
+  const parts = iso.split('-');
+  return parseInt(parts[1], 10) + '/' + parseInt(parts[2], 10) + '/' + parts[0].slice(2);
+}
+
+// Build the notation string from a set list.
+// Weighted sets show WEIGHT x REPS; body-weight drills show reps only.
+function compileSets(sets) {
+  if (!sets) return '';
+  return sets.filter(set => String(set.weight).trim() !== '' || String(set.reps).trim() !== '').map(set => {
+    const w = String(set.weight).trim();
+    const r = String(set.reps).trim();
+    if (w === '') return r || '?'; // body-weight drill: reps only
+    return w + 'x' + (r || '?'); // standard weight x reps
+  }).join(', ');
+}
+
+// True if a set list / cardio entry actually has data worth saving.
+function entryHasData(ex, entry) {
+  if (!entry) return false;
+  if (ex && ex.cardio) return !!(entry.cardioText && entry.cardioText.trim());
+  return (entry.sets || []).some(set => String(set.weight).trim() !== '' || String(set.reps).trim() !== '');
+}
+
+// Find the most recent prior logging of an exercise (workouts must be sorted desc).
+function lastEntryFor(exId, workouts) {
+  for (const w of workouts) {
+    const e = (w.entries || []).find(en => en.exerciseId === exId);
+    if (e && (e.sets && compileSets(e.sets) || e.cardioText && e.cardioText.trim())) {
+      return {
+        date: w.date,
+        entry: e
+      };
+    }
+  }
+  return null;
+}
+
+// Heaviest weight in a set list, for a simple progressive-overload comparison.
+function topWeight(sets) {
+  let max = -1;
+  (sets || []).forEach(set => {
+    const w = parseFloat(set.weight);
+    if (!isNaN(w) && w > max) max = w;
+  });
+  return max;
+}
+function emptyDraft() {
+  return {
+    date: todayISO(),
+    label: 'RCC Circuit',
+    locationId: 'rcc',
+    entries: {}
+  };
+}
+function buildSeedData() {
+  return {
+    exercises: SEED_EXERCISES.map(e => ({
+      ...e
+    })),
+    workouts: buildSeedWorkouts(),
+    templates: SEED_TEMPLATES.map(t => ({
+      ...t,
+      exerciseIds: [...t.exerciseIds]
+    })),
+    locations: SEED_LOCATIONS.map(l => ({
+      ...l
+    })),
+    draft: emptyDraft()
+  };
+}
+
+// Defensive normalize + migration so older saved data keeps working and
+// newly added seed exercises / workouts / templates / locations appear.
+function normalize(raw) {
+  const seed = buildSeedData();
+  if (!raw || typeof raw !== 'object') return seed;
+  const locations = Array.isArray(raw.locations) && raw.locations.length ? raw.locations : seed.locations;
+
+  // Exercises: keep the user's, ensure a location field, merge in new seed exercises.
+  const byId = {};
+  (Array.isArray(raw.exercises) ? raw.exercises : []).forEach(e => {
+    if (e && e.id) byId[e.id] = {
+      ...e,
+      location: e.location || 'rcc'
+    };
+  });
+  seed.exercises.forEach(se => {
+    if (!byId[se.id]) byId[se.id] = se;
+  });
+  const exercises = Object.values(byId);
+
+  // Templates: keep the user's, merge in any new seed templates by id.
+  let templates = Array.isArray(raw.templates) && raw.templates.length ? raw.templates : [];
+  const tplIds = new Set(templates.map(t => t.id));
+  seed.templates.forEach(st => {
+    if (!tplIds.has(st.id)) templates = [...templates, st];
+  });
+
+  // Workouts: keep the user's, ensure locationId, merge in any new seed
+  // workouts by id, then sort newest first.
+  let workouts = (Array.isArray(raw.workouts) ? raw.workouts : []).map(w => ({
+    ...w,
+    locationId: w.locationId || 'rcc'
+  }));
+  const woIds = new Set(workouts.map(w => w.id));
+  seed.workouts.forEach(sw => {
+    if (!woIds.has(sw.id)) workouts = [...workouts, sw];
+  });
+  workouts.sort((a, b) => b.date.localeCompare(a.date));
+  const draft = raw.draft && typeof raw.draft === 'object' ? {
+    date: raw.draft.date || todayISO(),
+    label: raw.draft.label || 'RCC Circuit',
+    locationId: raw.draft.locationId || 'rcc',
+    entries: raw.draft.entries || {}
+  } : emptyDraft();
+  return {
+    exercises,
+    workouts,
+    templates,
+    locations,
+    draft
+  };
+}
+
+// Reproduce a workout in the user's plain-text note format (for Copy).
+function workoutToText(w, exercises) {
+  const lines = [(w.label || 'Workout') + ' ' + formatDate(w.date)];
+  (w.entries || []).forEach(e => {
+    const ex = exercises.find(x => x.id === e.exerciseId);
+    if (!ex) return;
+    let line = ex.name;
+    if (e.settings && e.settings.trim()) line += ' (' + e.settings.trim() + ')';
+    if (ex.cardio) {
+      if (e.cardioText && e.cardioText.trim()) line += ' ' + e.cardioText.trim();
+    } else {
+      const c = compileSets(e.sets);
+      if (c) line += ' ' + c;
+    }
+    lines.push(line);
+  });
+  return lines.join('\n');
+}
+const STYLES = ["@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');", ".ff-display{font-family:'Archivo',-apple-system,BlinkMacSystemFont,sans-serif;}", ".ff-data{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;}", ".ff-app input::placeholder,.ff-app textarea::placeholder{color:#52525b;}", ".ff-app input[type=date]{color-scheme:dark;}", ".ff-app *::-webkit-scrollbar{width:7px;height:7px;}", ".ff-app *::-webkit-scrollbar-thumb{background:#3f3f46;}"].join('\n');
+function App() {
+  const [data, setData] = useState(null); // { exercises, workouts, templates, locations, draft }
+  const [loading, setLoading] = useState(true);
+  const [storageMode, setStorageMode] = useState('saved'); // 'saved' | 'memory'
+  const [tab, setTab] = useState('log'); // 'log' | 'history'
+  const [expanded, setExpanded] = useState({}); // exerciseId -> bool
+  const [logMsg, setLogMsg] = useState('');
+  const [copiedId, setCopiedId] = useState(null);
+  const [showExport, setShowExport] = useState(false);
+  const [exportMsg, setExportMsg] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newEx, setNewEx] = useState({
+    name: '',
+    cat: 'Back',
+    location: 'rcc',
+    settingDefault: '',
+    cardio: false
+  });
+  const saveTimer = useRef(null);
+
+  /* --- Load saved data once on mount --- */
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (typeof window === 'undefined' || !window.storage) {
+        if (!cancelled) {
+          setData(buildSeedData());
+          setStorageMode('memory');
+          setLoading(false);
+        }
+        return;
+      }
+      try {
+        let result = null;
+        try {
+          // Reading a non-existent key throws, so this is wrapped separately.
+          result = await window.storage.get(STORAGE_KEY, false);
+        } catch (readErr) {
+          result = null; // first run: key not created yet
+        }
+        if (result && result.value) {
+          const parsed = normalize(JSON.parse(result.value));
+          if (!cancelled) setData(parsed);
+          // Persist the migrated shape so new fields/workouts are saved.
+          try {
+            await window.storage.set(STORAGE_KEY, JSON.stringify(parsed), false);
+          } catch (e) {}
+        } else {
+          const seed = buildSeedData();
+          try {
+            await window.storage.set(STORAGE_KEY, JSON.stringify(seed), false);
+          } catch (writeErr) {
+            console.error('[INIT] could not write seed data', writeErr);
+          }
+          if (!cancelled) setData(seed);
+        }
+      } catch (err) {
+        console.error('[LOAD] storage error, using memory mode', err);
+        if (!cancelled) {
+          setData(buildSeedData());
+          setStorageMode('memory');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* --- Persist helper: updates state and saves (debounced, or immediate) --- */
+  function persist(next, immediate) {
+    setData(next);
+    if (typeof window === 'undefined' || !window.storage) return;
+    const doSave = async () => {
+      try {
+        await window.storage.set(STORAGE_KEY, JSON.stringify(next), false);
+      } catch (err) {
+        console.error('[SAVE] failed to persist data', err);
+      }
+    };
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (immediate) doSave();else saveTimer.current = setTimeout(doSave, 700);
+  }
+
+  /* --- Draft editing --- */
+  function getDraftEntry(exId) {
+    return data.draft.entries[exId] || null;
+  }
+  function setDraftEntry(exId, entry) {
+    persist({
+      ...data,
+      draft: {
+        ...data.draft,
+        entries: {
+          ...data.draft.entries,
+          [exId]: entry
+        }
+      }
+    });
+  }
+
+  // Build a fresh entry, pre-filling settings from last time or the default.
+  function freshEntry(ex) {
+    const last = lastEntryFor(ex.id, data.workouts);
+    const settings = last && last.entry.settings || ex.settingDefault || '';
+    return {
+      settings,
+      sets: ex.cardio ? [] : [{
+        weight: '',
+        reps: ''
+      }],
+      cardioText: ''
+    };
+  }
+  function toggleExpand(ex) {
+    const isOpen = !!expanded[ex.id];
+    if (!isOpen && !data.draft.entries[ex.id]) setDraftEntry(ex.id, freshEntry(ex));
+    setExpanded({
+      ...expanded,
+      [ex.id]: !isOpen
+    });
+  }
+  function updateEntryField(exId, patch) {
+    const current = data.draft.entries[exId] || {
+      settings: '',
+      sets: [{
+        weight: '',
+        reps: ''
+      }],
+      cardioText: ''
+    };
+    setDraftEntry(exId, {
+      ...current,
+      ...patch
+    });
+  }
+  function updateSet(exId, idx, field, value) {
+    const current = data.draft.entries[exId];
+    if (!current) return;
+    const sets = current.sets.map((set, i) => i === idx ? {
+      ...set,
+      [field]: value
+    } : set);
+    setDraftEntry(exId, {
+      ...current,
+      sets
+    });
+  }
+  function addSet(exId) {
+    const current = data.draft.entries[exId];
+    if (!current) return;
+    // Carry the previous set's weight forward as a sensible starting point.
+    const prev = current.sets[current.sets.length - 1] || {
+      weight: '',
+      reps: ''
+    };
+    setDraftEntry(exId, {
+      ...current,
+      sets: [...current.sets, {
+        weight: prev.weight,
+        reps: ''
+      }]
+    });
+  }
+  function removeSet(exId, idx) {
+    const current = data.draft.entries[exId];
+    if (!current) return;
+    const sets = current.sets.filter((_, i) => i !== idx);
+    setDraftEntry(exId, {
+      ...current,
+      sets: sets.length ? sets : [{
+        weight: '',
+        reps: ''
+      }]
+    });
+  }
+
+  /* --- Load a routine: pre-expand its exercises in the draft --- */
+  function loadTemplate(tplId) {
+    if (!tplId) return;
+    const tpl = data.templates.find(t => t.id === tplId);
+    if (!tpl) return;
+    const newEntries = {
+      ...data.draft.entries
+    };
+    const newExpanded = {
+      ...expanded
+    };
+    tpl.exerciseIds.forEach(exId => {
+      const ex = data.exercises.find(x => x.id === exId);
+      if (!ex) return;
+      if (!newEntries[exId]) newEntries[exId] = freshEntry(ex);
+      newExpanded[exId] = true;
+    });
+    persist({
+      ...data,
+      draft: {
+        ...data.draft,
+        label: tpl.name,
+        entries: newEntries
+      }
+    });
+    setExpanded(newExpanded);
+  }
+
+  /* --- Switch training location --- */
+  function setLocation(locId) {
+    setExpanded({});
+    persist({
+      ...data,
+      draft: {
+        ...data.draft,
+        locationId: locId
+      }
+    });
+  }
+
+  /* --- Finish the session: move the draft into history --- */
+  function finishWorkout() {
+    const entries = [];
+    // Only include exercises that belong to this workout's location.
+    for (const ex of data.exercises) {
+      if (ex.location !== data.draft.locationId) continue;
+      const e = data.draft.entries[ex.id];
+      if (!entryHasData(ex, e)) continue;
+      if (ex.cardio) {
+        entries.push({
+          exerciseId: ex.id,
+          settings: e.settings || '',
+          sets: [],
+          cardioText: e.cardioText.trim()
+        });
+      } else {
+        const sets = e.sets.filter(set => String(set.weight).trim() !== '' || String(set.reps).trim() !== '');
+        entries.push({
+          exerciseId: ex.id,
+          settings: e.settings || '',
+          sets,
+          cardioText: ''
+        });
+      }
+    }
+    if (entries.length === 0) {
+      setLogMsg('Log at least one exercise before finishing.');
+      return;
+    }
+    const workout = {
+      id: makeId(),
+      date: data.draft.date,
+      label: data.draft.label || 'Workout',
+      locationId: data.draft.locationId,
+      entries
+    };
+    const workouts = [workout, ...data.workouts].sort((a, b) => b.date.localeCompare(a.date));
+    persist({
+      ...data,
+      workouts,
+      draft: {
+        ...emptyDraft(),
+        locationId: data.draft.locationId
+      }
+    }, true);
+    setExpanded({});
+    setLogMsg('');
+    setTab('history');
+  }
+  function clearDraft() {
+    if (!window.confirm('Clear everything entered for this session?')) return;
+    persist({
+      ...data,
+      draft: {
+        ...emptyDraft(),
+        locationId: data.draft.locationId
+      }
+    });
+    setExpanded({});
+    setLogMsg('');
+  }
+
+  // Edit a saved workout's date or label (re-sorts on date change).
+  function updateWorkout(id, patch) {
+    const workouts = data.workouts.map(w => w.id === id ? {
+      ...w,
+      ...patch
+    } : w).sort((a, b) => b.date.localeCompare(a.date));
+    persist({
+      ...data,
+      workouts
+    });
+  }
+  function deleteWorkout(id) {
+    if (!window.confirm('Delete this saved workout? This cannot be undone.')) return;
+    persist({
+      ...data,
+      workouts: data.workouts.filter(w => w.id !== id)
+    });
+  }
+  function resetAll() {
+    if (!window.confirm('Reset ALL data back to the starting library, routines, and logged history? This erases anything else you added.')) return;
+    persist(buildSeedData(), true);
+    setExpanded({});
+    setTab('log');
+  }
+  function addExercise() {
+    const name = newEx.name.trim();
+    if (!name) return;
+    const ex = {
+      id: makeId(),
+      name,
+      cat: newEx.cat,
+      location: newEx.location,
+      equip: 'Custom',
+      settingDefault: newEx.settingDefault.trim(),
+      cardio: !!newEx.cardio
+    };
+    persist({
+      ...data,
+      exercises: [...data.exercises, ex]
+    });
+    setNewEx({
+      name: '',
+      cat: 'Back',
+      location: data.draft.locationId,
+      settingDefault: '',
+      cardio: false
+    });
+    setShowAddForm(false);
+  }
+  async function copyWorkout(w) {
+    const text = workoutToText(w, data.exercises);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(w.id);
+      setTimeout(() => setCopiedId(null), 1600);
+    } catch (err) {
+      console.error('[COPY] clipboard unavailable', err);
+      window.prompt('Copy your workout text:', text);
+    }
+  }
+
+  /* --- Export / backup helpers --- */
+
+  // The entire history as plain text in the user's notation, newest first.
+  function exportAllText() {
+    return data.workouts.map(w => workoutToText(w, data.exercises)).join('\n\n');
+  }
+
+  // Show a short status message in the export panel, then clear it.
+  function flashExportMsg(msg, ms) {
+    setExportMsg(msg);
+    setTimeout(() => setExportMsg(''), ms || 2600);
+  }
+
+  // Copy any text to the clipboard, with a manual-copy fallback box.
+  async function copyToClipboard(text, successMsg) {
+    try {
+      await navigator.clipboard.writeText(text);
+      flashExportMsg(successMsg);
+    } catch (err) {
+      console.error('[EXPORT] clipboard unavailable', err);
+      window.prompt('Copy your data:', text);
+      flashExportMsg('Opened a copy box.');
+    }
+  }
+
+  // Download the complete data set as a .json backup file.
+  function downloadBackup() {
+    const json = JSON.stringify(data, null, 2);
+    try {
+      const blob = new Blob([json], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'strength-log-backup-' + todayISO() + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      flashExportMsg('Backup file downloaded.', 3200);
+    } catch (err) {
+      // Some mobile webviews block file downloads -- fall back to clipboard.
+      console.error('[EXPORT] download failed, using clipboard', err);
+      copyToClipboard(json, 'Download blocked -- backup copied to clipboard instead.');
+    }
+  }
+
+  /* --- Loading screen --- */
+  if (loading || !data) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "ff-app ff-display min-h-screen bg-zinc-950 flex items-center justify-center"
+    }, /*#__PURE__*/React.createElement("style", null, STYLES), /*#__PURE__*/React.createElement("div", {
+      className: "text-zinc-500 text-sm uppercase tracking-widest"
+    }, "Loading log..."));
+  }
+  const locId = data.draft.locationId;
+  const locName = (data.locations.find(l => l.id === locId) || {}).name || 'Gym';
+  const locTemplates = data.templates.filter(t => t.locationId === locId);
+  const loggedCount = data.exercises.filter(ex => ex.location === locId && entryHasData(ex, data.draft.entries[ex.id])).length;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "ff-app min-h-screen bg-zinc-950 text-zinc-100 flex justify-center"
+  }, /*#__PURE__*/React.createElement("style", null, STYLES), /*#__PURE__*/React.createElement("div", {
+    className: "w-full max-w-md flex flex-col min-h-screen border-x border-zinc-900"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "sticky top-0 z-20 bg-zinc-950 border-b-2 border-orange-500"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "px-4 pt-4 pb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ff-data text-[10px] tracking-[0.3em] text-orange-500 uppercase"
+  }, tab === 'log' ? locName : 'All Sessions'), /*#__PURE__*/React.createElement("h1", {
+    className: "ff-display text-2xl font-extrabold tracking-tight text-zinc-50 leading-none mt-1"
+  }, "STRENGTH LOG")), /*#__PURE__*/React.createElement("div", {
+    className: "flex"
+  }, [['log', 'Log Workout'], ['history', 'History']].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
+    key: id,
+    onClick: () => setTab(id),
+    className: 'flex-1 ff-display text-xs font-bold uppercase tracking-widest py-3 border-b-2 transition-colors ' + (tab === id ? 'border-orange-500 text-zinc-50' : 'border-zinc-900 text-zinc-600')
+  }, label)))), storageMode === 'memory' && /*#__PURE__*/React.createElement("div", {
+    className: "ff-data text-[10px] text-amber-400 bg-amber-950/40 px-4 py-2 border-b border-amber-900/50"
+  }, "Note: saved storage is unavailable here, so this session will not persist."), tab === 'log' && /*#__PURE__*/React.createElement("main", {
+    className: "flex-1 pb-28"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "px-4 py-4 border-b border-zinc-900 bg-zinc-900/40 space-y-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
+  }, "Location"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-1"
+  }, data.locations.map(loc => /*#__PURE__*/React.createElement("button", {
+    key: loc.id,
+    onClick: () => setLocation(loc.id),
+    className: 'ff-display flex-1 text-xs font-bold uppercase tracking-wider py-2 border transition-colors ' + (loc.id === locId ? 'border-orange-500 bg-orange-500 text-zinc-950' : 'border-zinc-700 text-zinc-400')
+  }, loc.name)))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
+  }, "Date"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: data.draft.date,
+    onChange: e => persist({
+      ...data,
+      draft: {
+        ...data.draft,
+        date: e.target.value
+      }
+    }),
+    className: "ff-data w-full mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
+  }, "Session"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: data.draft.label,
+    onChange: e => persist({
+      ...data,
+      draft: {
+        ...data.draft,
+        label: e.target.value
+      }
+    }),
+    className: "ff-display w-full mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  }))), locTemplates.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
+  }, "Load routine"), /*#__PURE__*/React.createElement("select", {
+    value: "",
+    onChange: e => loadTemplate(e.target.value),
+    className: "ff-data w-full mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "-- pick a routine to load --"), locTemplates.map(t => /*#__PURE__*/React.createElement("option", {
+    key: t.id,
+    value: t.id
+  }, t.name))))), CATEGORY_ORDER.map(cat => {
+    const inCat = data.exercises.filter(e => e.cat === cat && e.location === locId);
+    if (inCat.length === 0) return null;
+    return /*#__PURE__*/React.createElement("section", {
+      key: cat
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ff-data text-[10px] uppercase tracking-[0.25em] text-zinc-600 px-4 pt-5 pb-2"
+    }, cat), inCat.map(ex => {
+      const entry = getDraftEntry(ex.id);
+      const isOpen = !!expanded[ex.id];
+      const last = lastEntryFor(ex.id, data.workouts);
+      const lastText = last ? ex.cardio ? last.entry.cardioText || '' : compileSets(last.entry.sets) : '';
+      const currentText = entry ? ex.cardio ? entry.cardioText || '' : compileSets(entry.sets) : '';
+      // Progressive-overload cue: heavier top set than last time (weighted only).
+      const beatsLast = !ex.cardio && !ex.noWeight && last && entry && topWeight(entry.sets) > topWeight(last.entry.sets);
+      return /*#__PURE__*/React.createElement("div", {
+        key: ex.id,
+        className: "border-b border-zinc-900"
+      }, /*#__PURE__*/React.createElement("button", {
+        onClick: () => toggleExpand(ex),
+        className: "w-full flex items-center gap-3 px-4 py-3 text-left"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex-1 min-w-0"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "ff-display font-semibold text-zinc-100 truncate"
+      }, ex.name), /*#__PURE__*/React.createElement("div", {
+        className: "ff-data text-[10px] text-zinc-600 mt-0.5 truncate"
+      }, "LAST  ", lastText ? lastText + ' - ' + formatDate(last.date) : '--')), currentText && /*#__PURE__*/React.createElement("div", {
+        className: 'ff-data text-sm font-semibold px-2 py-1 ' + (beatsLast ? 'text-emerald-400' : 'text-orange-400')
+      }, currentText), /*#__PURE__*/React.createElement(ChevronDown, {
+        size: 18,
+        className: 'text-zinc-600 transition-transform ' + (isOpen ? 'rotate-180' : '')
+      })), isOpen && entry && /*#__PURE__*/React.createElement("div", {
+        className: "px-4 pb-4 pt-1 bg-zinc-900/40"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "ff-data text-[10px] text-zinc-600 mb-2"
+      }, ex.equip), /*#__PURE__*/React.createElement("label", {
+        className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
+      }, "Machine / setup"), /*#__PURE__*/React.createElement("input", {
+        type: "text",
+        value: entry.settings,
+        onChange: e => updateEntryField(ex.id, {
+          settings: e.target.value
+        }),
+        placeholder: "e.g. Seat 3 / Pad L / ROM 1",
+        className: "ff-data w-full mt-1 mb-3 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+      }), ex.cardio ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("label", {
+        className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
+      }, "Detail"), /*#__PURE__*/React.createElement("input", {
+        type: "text",
+        value: entry.cardioText,
+        onChange: e => updateEntryField(ex.id, {
+          cardioText: e.target.value
+        }),
+        placeholder: "e.g. 10 min, Level 3, 57-77 rpm",
+        className: "ff-data w-full mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+      })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("label", {
+        className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
+      }, ex.noWeight ? 'Sets ( reps each )' : 'Sets ( weight x reps )'), /*#__PURE__*/React.createElement("div", {
+        className: "mt-1 space-y-2"
+      }, entry.sets.map((set, i) => /*#__PURE__*/React.createElement("div", {
+        key: i,
+        className: "flex items-center gap-2"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "ff-data text-[10px] text-zinc-600 w-4"
+      }, i + 1), !ex.noWeight && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
+        inputMode: "decimal",
+        value: set.weight,
+        onChange: e => updateSet(ex.id, i, 'weight', e.target.value),
+        placeholder: "wt",
+        className: "ff-data w-20 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 text-center focus:border-orange-500 focus:outline-none"
+      }), /*#__PURE__*/React.createElement("span", {
+        className: "ff-data text-zinc-600"
+      }, "x")), /*#__PURE__*/React.createElement("input", {
+        inputMode: "numeric",
+        value: set.reps,
+        onChange: e => updateSet(ex.id, i, 'reps', e.target.value),
+        placeholder: "reps",
+        className: 'ff-data bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 text-center focus:border-orange-500 focus:outline-none ' + (ex.noWeight ? 'w-28' : 'w-20')
+      }), /*#__PURE__*/React.createElement("button", {
+        onClick: () => removeSet(ex.id, i),
+        className: "ml-auto text-zinc-600 hover:text-red-400 p-1",
+        "aria-label": "Remove set"
+      }, /*#__PURE__*/React.createElement(X, {
+        size: 16
+      }))))), /*#__PURE__*/React.createElement("button", {
+        onClick: () => addSet(ex.id),
+        className: "ff-data text-[11px] uppercase tracking-widest text-orange-500 mt-3 flex items-center gap-1"
+      }, /*#__PURE__*/React.createElement(Plus, {
+        size: 14
+      }), " Add set"))));
+    }));
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "px-4 py-5"
+  }, !showAddForm ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setShowAddForm(true);
+      setNewEx({
+        ...newEx,
+        location: locId
+      });
+    },
+    className: "ff-data text-[11px] uppercase tracking-widest text-zinc-500 flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement(Plus, {
+    size: 14
+  }), " Add an exercise") : /*#__PURE__*/React.createElement("div", {
+    className: "border border-zinc-800 p-3 space-y-2 bg-zinc-900/40"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newEx.name,
+    onChange: e => setNewEx({
+      ...newEx,
+      name: e.target.value
+    }),
+    placeholder: "Exercise name",
+    className: "ff-display w-full bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("select", {
+    value: newEx.cat,
+    onChange: e => setNewEx({
+      ...newEx,
+      cat: e.target.value
+    }),
+    className: "ff-data flex-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  }, CATEGORY_ORDER.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c,
+    value: c
+  }, c))), /*#__PURE__*/React.createElement("select", {
+    value: newEx.location,
+    onChange: e => setNewEx({
+      ...newEx,
+      location: e.target.value
+    }),
+    className: "ff-data flex-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  }, data.locations.map(l => /*#__PURE__*/React.createElement("option", {
+    key: l.id,
+    value: l.id
+  }, l.name)))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newEx.settingDefault,
+    onChange: e => setNewEx({
+      ...newEx,
+      settingDefault: e.target.value
+    }),
+    placeholder: "Default setup (optional)",
+    className: "ff-data flex-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  }), /*#__PURE__*/React.createElement("label", {
+    className: "ff-data flex items-center gap-1 text-xs text-zinc-400"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: newEx.cardio,
+    onChange: e => setNewEx({
+      ...newEx,
+      cardio: e.target.checked
+    })
+  }), "Cardio")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 pt-1"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: addExercise,
+    className: "ff-display flex-1 bg-orange-500 text-zinc-950 text-xs font-bold uppercase tracking-widest py-2"
+  }, "Add"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowAddForm(false),
+    className: "ff-display flex-1 border border-zinc-700 text-zinc-400 text-xs font-bold uppercase tracking-widest py-2"
+  }, "Cancel"))))), tab === 'log' && /*#__PURE__*/React.createElement("div", {
+    className: "fixed bottom-0 w-full max-w-md bg-zinc-950 border-t border-zinc-800 px-4 py-3"
+  }, logMsg && /*#__PURE__*/React.createElement("div", {
+    className: "ff-data text-[11px] text-red-400 mb-2 text-center"
+  }, logMsg), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: clearDraft,
+    className: "ff-display text-[11px] font-bold uppercase tracking-widest text-zinc-500 px-3 py-3"
+  }, "Clear"), /*#__PURE__*/React.createElement("button", {
+    onClick: finishWorkout,
+    className: "ff-display flex-1 bg-orange-500 text-zinc-950 text-sm font-extrabold uppercase tracking-widest py-3"
+  }, "Finish Workout", loggedCount > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "ff-data ml-2 font-medium"
+  }, "[", loggedCount, "]")))), tab === 'history' && /*#__PURE__*/React.createElement("main", {
+    className: "flex-1 pb-10"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ff-data text-[10px] uppercase tracking-[0.25em] text-zinc-600 px-4 pt-4 pb-1"
+  }, data.workouts.length, " session", data.workouts.length === 1 ? '' : 's', " logged", /*#__PURE__*/React.createElement("span", {
+    className: "text-zinc-700"
+  }, "  \xB7  tap date or title to edit")), /*#__PURE__*/React.createElement("div", {
+    className: "px-4 pt-2 pb-3 border-b border-zinc-900"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowExport(!showExport),
+    className: "ff-data text-[11px] uppercase tracking-widest text-zinc-400 flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement(ChevronDown, {
+    size: 14,
+    className: 'transition-transform ' + (showExport ? 'rotate-180' : '')
+  }), "Export & Backup"), showExport && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 space-y-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => copyToClipboard(exportAllText(), 'Full history copied -- paste into Notes.'),
+    className: "ff-display w-full text-xs font-bold uppercase tracking-widest py-2.5 border border-zinc-700 text-zinc-200"
+  }, "Copy full history (text)"), /*#__PURE__*/React.createElement("button", {
+    onClick: downloadBackup,
+    className: "ff-display w-full text-xs font-bold uppercase tracking-widest py-2.5 bg-orange-500 text-zinc-950"
+  }, "Download backup (.json)"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => copyToClipboard(JSON.stringify(data, null, 2), 'Backup JSON copied to clipboard.'),
+    className: "ff-display w-full text-xs font-bold uppercase tracking-widest py-2.5 border border-zinc-700 text-zinc-200"
+  }, "Copy backup (JSON)"), /*#__PURE__*/React.createElement("p", {
+    className: "ff-data text-[10px] text-zinc-600 leading-relaxed pt-1"
+  }, "Text = readable log for Notes. JSON = the complete file; keep it somewhere safe as your real backup."), exportMsg && /*#__PURE__*/React.createElement("div", {
+    className: "ff-data text-[11px] text-emerald-400"
+  }, exportMsg))), data.workouts.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ff-data text-sm text-zinc-600 px-4 py-10 text-center"
+  }, "No saved workouts yet. Log one from the Log tab."), data.workouts.map(w => {
+    const wLoc = (data.locations.find(l => l.id === w.locationId) || {}).name || '';
+    return /*#__PURE__*/React.createElement("div", {
+      key: w.id,
+      className: "border-b border-zinc-900 px-4 py-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start gap-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: w.label,
+      onChange: e => updateWorkout(w.id, {
+        label: e.target.value
+      }),
+      className: "ff-display font-bold text-zinc-100 bg-transparent w-full px-1 -ml-1 rounded-sm focus:outline-none focus:bg-zinc-800"
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 mt-0.5"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: w.date,
+      onChange: e => updateWorkout(w.id, {
+        date: e.target.value
+      }),
+      className: "ff-data text-[11px] text-orange-500 bg-transparent focus:outline-none"
+    }), wLoc && /*#__PURE__*/React.createElement("span", {
+      className: "ff-data text-[11px] text-zinc-600"
+    }, "\xB7 ", wLoc))), /*#__PURE__*/React.createElement("button", {
+      onClick: () => copyWorkout(w),
+      className: "ff-data text-[10px] uppercase tracking-widest text-zinc-400 flex items-center gap-1 border border-zinc-800 px-2 py-1.5"
+    }, copiedId === w.id ? /*#__PURE__*/React.createElement(Check, {
+      size: 13
+    }) : /*#__PURE__*/React.createElement(Copy, {
+      size: 13
+    }), copiedId === w.id ? 'Copied' : 'Copy'), /*#__PURE__*/React.createElement("button", {
+      onClick: () => deleteWorkout(w.id),
+      className: "text-zinc-700 hover:text-red-400 p-1",
+      "aria-label": "Delete workout"
+    }, /*#__PURE__*/React.createElement(Trash2, {
+      size: 15
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "mt-3 space-y-1.5"
+    }, (w.entries || []).map((e, i) => {
+      const ex = data.exercises.find(x => x.id === e.exerciseId);
+      if (!ex) return null;
+      const value = ex.cardio ? e.cardioText || '' : compileSets(e.sets);
+      return /*#__PURE__*/React.createElement("div", {
+        key: i,
+        className: "flex items-baseline gap-2"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "ff-display text-sm text-zinc-300 flex-1"
+      }, ex.name, e.settings && e.settings.trim() && /*#__PURE__*/React.createElement("span", {
+        className: "ff-data text-[10px] text-zinc-600"
+      }, " (", e.settings.trim(), ")")), /*#__PURE__*/React.createElement("span", {
+        className: "ff-data text-sm text-orange-400 font-medium"
+      }, value || '--'));
+    })));
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "px-4 py-6"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: resetAll,
+    className: "ff-data text-[10px] uppercase tracking-widest text-zinc-700 flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement(RotateCcw, {
+    size: 12
+  }), " Reset all data")))));
+}
+ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
+</script>
+</body>
+</html>
