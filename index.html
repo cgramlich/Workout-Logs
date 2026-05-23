@@ -174,6 +174,18 @@ if (!window.storage) {
 const STORAGE_KEY = 'rcc-strength-log-v1';
 const CATEGORY_ORDER = ['Back', 'Chest', 'Shoulders', 'Legs', 'Core', 'Arms', 'Golf Power', 'Cardio'];
 
+/* --- Cloud sync configuration ---------------------------------------------
+   Workout data is synced to a private GitHub repo so it is backed up and
+   available on every device. Only the data file lives in the repo; the
+   access token is stored per-device in localStorage and is never synced. --- */
+const SYNC_OWNER = 'cgramlich'; // GitHub account that owns the data repo
+const SYNC_REPO = 'workout-data'; // private repo holding the data file
+const SYNC_PATH = 'data.json'; // file path inside that repo
+const SYNC_BRANCH = 'main'; // branch to read/write
+const SYNC_SCHEMA = 1; // payload schema version
+const SYNC_TOKEN_KEY = 'rcc-sync-token'; // localStorage key: GitHub access token
+const SYNC_LAST_KEY = 'rcc-sync-last'; // localStorage key: last successful sync time
+
 /* --- The two training locations --- */
 const SEED_LOCATIONS = [{
   id: 'rcc',
@@ -647,6 +659,28 @@ function buildSeedWorkouts() {
 function makeId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
+
+// Give a workout an updatedAt timestamp if it lacks one (seed / legacy data).
+// Used so the sync merge has a comparable "last changed" time on every workout.
+function withSeedStamp(w) {
+  if (w && w.updatedAt) return w;
+  return {
+    ...w,
+    updatedAt: w && w.date ? w.date + 'T12:00:00.000Z' : new Date().toISOString()
+  };
+}
+
+// Friendly short timestamp for the sync status line, e.g. "5/23 4:30 PM".
+function formatSyncTime(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d.getTime())) return '';
+  let h = d.getHours();
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return d.getMonth() + 1 + '/' + d.getDate() + ' ' + h + ':' + mm + ' ' + ap;
+}
 function todayISO() {
   const d = new Date();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -683,6 +717,7 @@ function entryHasData(ex, entry) {
 // Find the most recent prior logging of an exercise (workouts must be sorted desc).
 function lastEntryFor(exId, workouts) {
   for (const w of workouts) {
+    if (w.deleted) continue;
     const e = (w.entries || []).find(en => en.exerciseId === exId);
     if (e && (e.sets && compileSets(e.sets) || e.cardioText && e.cardioText.trim())) {
       return {
@@ -716,7 +751,7 @@ function buildSeedData() {
     exercises: SEED_EXERCISES.map(e => ({
       ...e
     })),
-    workouts: buildSeedWorkouts(),
+    workouts: buildSeedWorkouts().map(withSeedStamp),
     templates: SEED_TEMPLATES.map(t => ({
       ...t,
       exerciseIds: [...t.exerciseIds]
@@ -759,7 +794,8 @@ function normalize(raw) {
   // workouts by id, then sort newest first.
   let workouts = (Array.isArray(raw.workouts) ? raw.workouts : []).map(w => ({
     ...w,
-    locationId: w.locationId || 'rcc'
+    locationId: w.locationId || 'rcc',
+    updatedAt: w.updatedAt || (w.date ? w.date + 'T12:00:00.000Z' : new Date().toISOString())
   }));
   const woIds = new Set(workouts.map(w => w.id));
   seed.workouts.forEach(sw => {
@@ -799,6 +835,188 @@ function workoutToText(w, exercises) {
   });
   return lines.join('\n');
 }
+
+/* =========================================================================
+   Cloud sync -- GitHub-backed.
+
+   The synced payload is { schema, exercises, workouts, templates, locations }.
+   The on-screen draft is intentionally NOT synced -- it is transient,
+   per-device working state. Each workout carries an updatedAt timestamp;
+   merges keep the most recently updated copy of each workout, and deletions
+   are kept as tombstones (deleted: true) so a delete on one device also
+   propagates to the others.
+   ========================================================================= */
+
+// UTF-8 safe base64. Plain btoa/atob mishandle non-ASCII characters.
+function utf8ToB64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function b64ToUtf8(b64) {
+  return decodeURIComponent(escape(atob(String(b64).replace(/\s/g, ''))));
+}
+
+// The subset of app data that is synced (everything except the live draft).
+function payloadFromData(data) {
+  return {
+    schema: SYNC_SCHEMA,
+    exercises: data.exercises || [],
+    workouts: data.workouts || [],
+    templates: data.templates || [],
+    locations: data.locations || []
+  };
+}
+
+// Stable string form of a payload, used to detect "nothing changed" so the
+// app never pushes a no-op commit. Arrays are sorted by id first so two
+// devices computing the same merge produce byte-identical output.
+function canonicalPayload(p) {
+  const byId = arr => [...(arr || [])].sort((a, b) => String(a && a.id).localeCompare(String(b && b.id)));
+  return JSON.stringify({
+    schema: p.schema || SYNC_SCHEMA,
+    exercises: byId(p.exercises),
+    locations: byId(p.locations),
+    templates: byId(p.templates),
+    workouts: byId(p.workouts)
+  });
+}
+
+// Union two id-keyed lists. Entries from b win on an id conflict.
+function unionById(a, b) {
+  const m = {};
+  (a || []).forEach(x => {
+    if (x && x.id) m[x.id] = x;
+  });
+  (b || []).forEach(x => {
+    if (x && x.id) m[x.id] = x;
+  });
+  return Object.values(m);
+}
+
+// Merge workout lists by id, keeping the copy with the newer updatedAt.
+// Deletions are tombstones, so a newer "deleted" copy correctly wins.
+function mergeWorkouts(remote, local) {
+  const m = {};
+  const consider = w => {
+    if (!w || !w.id) return;
+    const cur = m[w.id];
+    if (!cur) {
+      m[w.id] = w;
+      return;
+    }
+    const a = cur.updatedAt || '';
+    const b = w.updatedAt || '';
+    if (b >= a) m[w.id] = w; // newer wins; on a tie the later-processed copy wins
+  };
+  (remote || []).forEach(consider); // remote processed first
+  (local || []).forEach(consider); // local processed second -> wins ties
+  return Object.values(m);
+}
+
+// Merge a remote payload with local data into one combined payload.
+function mergePayloads(remote, local) {
+  return {
+    schema: SYNC_SCHEMA,
+    exercises: unionById(remote.exercises, local.exercises),
+    templates: unionById(remote.templates, local.templates),
+    locations: unionById(remote.locations, local.locations),
+    workouts: mergeWorkouts(remote.workouts, local.workouts)
+  };
+}
+
+// Standard headers for the GitHub REST API.
+function ghHeaders(token) {
+  return {
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  };
+}
+
+// Read the data file from the repo.
+// Returns { payload, sha } -- or { payload: null, sha: null } when the file
+// does not exist yet (the first-ever sync). Throws on auth / network errors.
+async function ghGetFile(token) {
+  const url = 'https://api.github.com/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + SYNC_PATH + '?ref=' + SYNC_BRANCH + '&t=' + Date.now();
+  console.log('[SYNC-PULL] GET ' + url);
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: ghHeaders(token),
+      cache: 'no-store'
+    });
+  } catch (netErr) {
+    console.error('[SYNC-PULL] network error', netErr);
+    throw new Error('Network error reaching GitHub.');
+  }
+  if (res.status === 404) {
+    console.log('[SYNC-PULL] data file not found -- treating as first sync');
+    return {
+      payload: null,
+      sha: null
+    };
+  }
+  if (res.status === 401) throw new Error('Token rejected (401). Check or regenerate it.');
+  if (res.status === 403) throw new Error('Access denied (403). Token may lack repo access.');
+  if (!res.ok) throw new Error('GitHub read failed (HTTP ' + res.status + ').');
+  let body;
+  try {
+    body = await res.json();
+  } catch (e) {
+    console.error('[SYNC-PULL] bad JSON from GitHub', e);
+    throw new Error('Unreadable response from GitHub.');
+  }
+  let payload;
+  try {
+    payload = JSON.parse(b64ToUtf8(body.content));
+  } catch (e) {
+    console.error('[SYNC-PULL] could not parse remote data.json', e);
+    throw new Error('Remote data file is corrupt or unreadable.');
+  }
+  console.log('[SYNC-PULL] ok -- ' + (payload.workouts || []).length + ' workout(s), sha ' + body.sha);
+  return {
+    payload: payload,
+    sha: body.sha
+  };
+}
+
+// Write the data file to the repo. sha must be the current file sha when
+// updating an existing file, or null when creating it for the first time.
+async function ghPutFile(token, payload, sha) {
+  const url = 'https://api.github.com/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + SYNC_PATH;
+  const json = JSON.stringify(payload, null, 2);
+  const bodyObj = {
+    message: 'workout sync ' + new Date().toISOString(),
+    content: utf8ToB64(json),
+    branch: SYNC_BRANCH
+  };
+  if (sha) bodyObj.sha = sha;
+  console.log('[SYNC-PUSH] PUT ' + url + ' (' + (sha ? 'update' : 'create') + ')');
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'PUT',
+      headers: ghHeaders(token),
+      body: JSON.stringify(bodyObj)
+    });
+  } catch (netErr) {
+    console.error('[SYNC-PUSH] network error', netErr);
+    throw new Error('Network error reaching GitHub.');
+  }
+  if (res.status === 409) {
+    // The file changed since our read -- another device pushed first.
+    console.warn('[SYNC-PUSH] 409 conflict -- remote moved ahead');
+    const e = new Error('conflict');
+    e.conflict = true;
+    throw e;
+  }
+  if (res.status === 401) throw new Error('Token rejected (401). Check or regenerate it.');
+  if (res.status === 403) throw new Error('Access denied (403). Token may lack write access.');
+  if (res.status === 404) throw new Error('Repo not found (404). Check the repo name and token access.');
+  if (res.status === 422) throw new Error('GitHub rejected the write (422).');
+  if (!res.ok) throw new Error('GitHub write failed (HTTP ' + res.status + ').');
+  console.log('[SYNC-PUSH] ok');
+  return true;
+}
 const STYLES = ["@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');", ".ff-display{font-family:'Archivo',-apple-system,BlinkMacSystemFont,sans-serif;}", ".ff-data{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;}", ".ff-app input::placeholder,.ff-app textarea::placeholder{color:#52525b;}", ".ff-app input[type=date]{color-scheme:dark;}", ".ff-app *::-webkit-scrollbar{width:7px;height:7px;}", ".ff-app *::-webkit-scrollbar-thumb{background:#3f3f46;}"].join('\n');
 function App() {
   const [data, setData] = useState(null); // { exercises, workouts, templates, locations, draft }
@@ -819,6 +1037,17 @@ function App() {
     cardio: false
   });
   const saveTimer = useRef(null);
+  const dataRef = useRef(null); // always-current data, for debounced sync
+  const syncTimer = useRef(null); // debounce handle for change-triggered sync
+  const syncing = useRef(false); // guard: prevents overlapping sync runs
+  const didInitialSync = useRef(false); // guard: the load-time sync runs only once
+  const importInputRef = useRef(null); // hidden file input used by Import
+  const [syncToken, setSyncToken] = useState(''); // GitHub token (this device only)
+  const [tokenInput, setTokenInput] = useState(''); // contents of the token field
+  const [syncStatus, setSyncStatus] = useState('off'); // off | idle | syncing | ok | error
+  const [syncMsg, setSyncMsg] = useState(''); // status / error text
+  const [syncLast, setSyncLast] = useState(''); // ISO time of last successful sync
+  const [showSync, setShowSync] = useState(false); // Cloud Sync panel open?
 
   /* --- Load saved data once on mount --- */
   useEffect(() => {
@@ -871,6 +1100,38 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  /* --- Keep a ref to the latest data so the debounced sync sees current state --- */
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  /* --- Load this device's saved sync token on mount --- */
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem(SYNC_TOKEN_KEY) || '';
+      const last = localStorage.getItem(SYNC_LAST_KEY) || '';
+      if (t) {
+        setSyncToken(t);
+        setSyncStatus('idle');
+      }
+      if (last) setSyncLast(last);
+      console.log('[SYNC] sync settings loaded -- token ' + (t ? 'present' : 'absent'));
+    } catch (err) {
+      console.error('[SYNC] could not read saved sync settings', err);
+    }
+  }, []);
+
+  /* --- Once data and a token are both ready, run one sync on load --- */
+  useEffect(() => {
+    if (didInitialSync.current) return;
+    if (!data || !syncToken) return;
+    didInitialSync.current = true;
+    console.log('[SYNC] running initial sync on load');
+    runSync(data, {
+      reason: 'load'
+    });
+  }, [data, syncToken]);
 
   /* --- Persist helper: updates state and saves (debounced, or immediate) --- */
   function persist(next, immediate) {
@@ -1054,6 +1315,7 @@ function App() {
       date: data.draft.date,
       label: data.draft.label || 'Workout',
       locationId: data.draft.locationId,
+      updatedAt: new Date().toISOString(),
       entries
     };
     const workouts = [workout, ...data.workouts].sort((a, b) => b.date.localeCompare(a.date));
@@ -1065,6 +1327,7 @@ function App() {
         locationId: data.draft.locationId
       }
     }, true);
+    scheduleSync();
     setExpanded({});
     setLogMsg('');
     setTab('history');
@@ -1084,21 +1347,34 @@ function App() {
 
   // Edit a saved workout's date or label (re-sorts on date change).
   function updateWorkout(id, patch) {
+    const stamped = {
+      ...patch,
+      updatedAt: new Date().toISOString()
+    };
     const workouts = data.workouts.map(w => w.id === id ? {
       ...w,
-      ...patch
-    } : w).sort((a, b) => b.date.localeCompare(a.date));
+      ...stamped
+    } : w).sort((a, b) => String(b.date).localeCompare(String(a.date)));
     persist({
       ...data,
       workouts
     });
+    scheduleSync();
   }
   function deleteWorkout(id) {
     if (!window.confirm('Delete this saved workout? This cannot be undone.')) return;
+    // Tombstone the workout rather than dropping it, so the deletion also
+    // syncs to other devices instead of the workout reappearing on next pull.
+    const workouts = data.workouts.map(w => w.id === id ? {
+      ...w,
+      deleted: true,
+      updatedAt: new Date().toISOString()
+    } : w);
     persist({
       ...data,
-      workouts: data.workouts.filter(w => w.id !== id)
+      workouts
     });
+    scheduleSync();
   }
   function resetAll() {
     if (!window.confirm('Reset ALL data back to the starting library, routines, and logged history? This erases anything else you added.')) return;
@@ -1122,6 +1398,7 @@ function App() {
       ...data,
       exercises: [...data.exercises, ex]
     });
+    scheduleSync();
     setNewEx({
       name: '',
       cat: 'Back',
@@ -1147,7 +1424,7 @@ function App() {
 
   // The entire history as plain text in the user's notation, newest first.
   function exportAllText() {
-    return data.workouts.map(w => workoutToText(w, data.exercises)).join('\n\n');
+    return data.workouts.filter(w => !w.deleted).map(w => workoutToText(w, data.exercises)).join('\n\n');
   }
 
   // Show a short status message in the export panel, then clear it.
@@ -1191,6 +1468,173 @@ function App() {
     }
   }
 
+  /* --- Cloud sync orchestration --------------------------------------------
+     runSync: pull the remote file, merge it with the data passed in, push the
+     result back if it differs from what is in the cloud, and save the merged
+     result locally. Safe to call on load, after a change, or manually. --- */
+  async function runSync(base, opts) {
+    const o = opts || {};
+    const token = (o.token || syncToken || '').trim();
+    if (!token) {
+      setSyncStatus('off');
+      return;
+    }
+    if (syncing.current) {
+      console.log('[SYNC] a sync is already running -- skipped');
+      return;
+    }
+    if (!base) {
+      console.warn('[SYNC] no data to sync yet -- skipped');
+      return;
+    }
+    syncing.current = true;
+    setSyncStatus('syncing');
+    setSyncMsg(o.reason === 'load' ? 'Checking cloud...' : 'Syncing...');
+    console.log('[SYNC] start (reason: ' + (o.reason || 'manual') + ')');
+    try {
+      let attempt = 0;
+      while (true) {
+        attempt++;
+        const remote = await ghGetFile(token);
+        const localPayload = payloadFromData(base);
+        let merged;
+        if (!remote.payload) {
+          merged = localPayload; // first sync: upload local data as-is
+          console.log('[SYNC-MERGE] first sync -- using local data as the baseline');
+        } else {
+          merged = mergePayloads(remote.payload, localPayload);
+          console.log('[SYNC-MERGE] merged remote + local');
+        }
+        const remoteCanon = remote.payload ? canonicalPayload(remote.payload) : '';
+        const mergedCanon = canonicalPayload(merged);
+        // Push only when the merged result differs from what is already in the cloud.
+        if (mergedCanon !== remoteCanon) {
+          try {
+            await ghPutFile(token, merged, remote.sha);
+          } catch (putErr) {
+            if (putErr.conflict && attempt < 3) {
+              console.warn('[SYNC] push conflict -- re-pulling and retrying');
+              continue; // another device wrote: re-pull, re-merge
+            }
+            throw putErr;
+          }
+        } else {
+          console.log('[SYNC] cloud already up to date -- no push needed');
+        }
+        // Save the merged result locally if it differs from what this device had.
+        if (mergedCanon !== canonicalPayload(localPayload)) {
+          const nextData = {
+            ...base,
+            exercises: merged.exercises,
+            templates: merged.templates,
+            locations: merged.locations,
+            workouts: [...merged.workouts].sort((a, b) => String(b.date).localeCompare(String(a.date)))
+          };
+          persist(nextData, true);
+          console.log('[SYNC] local data updated from merge result');
+        }
+        const stamp = new Date().toISOString();
+        try {
+          localStorage.setItem(SYNC_LAST_KEY, stamp);
+        } catch (e) {}
+        setSyncLast(stamp);
+        setSyncStatus('ok');
+        setSyncMsg('Synced ' + formatSyncTime(stamp));
+        console.log('[SYNC] done');
+        break;
+      }
+    } catch (err) {
+      console.error('[SYNC] failed', err);
+      setSyncStatus('error');
+      setSyncMsg(err && err.message ? err.message : 'Sync failed.');
+    } finally {
+      syncing.current = false;
+    }
+  }
+
+  // Debounced sync, fired after a data change so rapid edits cause one sync.
+  function scheduleSync() {
+    if (!syncToken) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      runSync(dataRef.current || data, {
+        reason: 'change'
+      });
+    }, 3500);
+  }
+
+  // Save a freshly pasted token and run the first sync for this device.
+  function connectSync() {
+    const t = tokenInput.trim();
+    if (!t) {
+      setSyncStatus('error');
+      setSyncMsg('Paste your GitHub token first.');
+      return;
+    }
+    try {
+      localStorage.setItem(SYNC_TOKEN_KEY, t);
+    } catch (err) {
+      console.error('[SYNC] could not save token', err);
+      setSyncStatus('error');
+      setSyncMsg('Could not save the token on this device.');
+      return;
+    }
+    didInitialSync.current = true; // connect handles the first sync itself
+    setSyncToken(t);
+    setTokenInput('');
+    setSyncStatus('idle');
+    console.log('[SYNC] token saved -- running first sync');
+    runSync(dataRef.current || data, {
+      token: t,
+      reason: 'load'
+    });
+  }
+
+  // Stop syncing on this device. Local data stays; only the token is removed.
+  function disconnectSync() {
+    if (!window.confirm('Disconnect cloud sync on this device? Your data stays here -- it just stops syncing.')) return;
+    try {
+      localStorage.removeItem(SYNC_TOKEN_KEY);
+    } catch (e) {}
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    setSyncToken('');
+    setSyncStatus('off');
+    setSyncMsg('');
+    console.log('[SYNC] disconnected on this device');
+  }
+
+  // Import a .json backup file and merge it into the current data.
+  function importBackup(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        const incoming = normalize(parsed); // accepts a full data file or a payload
+        const merged = mergePayloads(payloadFromData(incoming), payloadFromData(data));
+        const nextData = {
+          ...data,
+          exercises: merged.exercises,
+          templates: merged.templates,
+          locations: merged.locations,
+          workouts: [...merged.workouts].sort((a, b) => String(b.date).localeCompare(String(a.date)))
+        };
+        persist(nextData, true);
+        console.log('[IMPORT] merged backup -- ' + nextData.workouts.length + ' workout(s) total');
+        flashExportMsg('Backup imported and merged.', 3200);
+        scheduleSync();
+      } catch (err) {
+        console.error('[IMPORT] failed', err);
+        flashExportMsg('Could not read that file -- is it a valid backup?');
+      }
+    };
+    reader.onerror = () => {
+      console.error('[IMPORT] file read error');
+      flashExportMsg('Could not read that file.');
+    };
+    reader.readAsText(file);
+  }
+
   /* --- Loading screen --- */
   if (loading || !data) {
     return /*#__PURE__*/React.createElement("div", {
@@ -1203,6 +1647,8 @@ function App() {
   const locName = (data.locations.find(l => l.id === locId) || {}).name || 'Gym';
   const locTemplates = data.templates.filter(t => t.locationId === locId);
   const loggedCount = data.exercises.filter(ex => ex.location === locId && entryHasData(ex, data.draft.entries[ex.id])).length;
+  // Workouts shown in History: tombstoned (deleted) ones are hidden.
+  const visibleWorkouts = data.workouts.filter(w => !w.deleted);
   return /*#__PURE__*/React.createElement("div", {
     className: "ff-app min-h-screen bg-zinc-950 text-zinc-100 flex justify-center"
   }, /*#__PURE__*/React.createElement("style", null, STYLES), /*#__PURE__*/React.createElement("div", {
@@ -1462,9 +1908,53 @@ function App() {
     className: "flex-1 pb-10"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ff-data text-[10px] uppercase tracking-[0.25em] text-zinc-600 px-4 pt-4 pb-1"
-  }, data.workouts.length, " session", data.workouts.length === 1 ? '' : 's', " logged", /*#__PURE__*/React.createElement("span", {
+  }, visibleWorkouts.length, " session", visibleWorkouts.length === 1 ? '' : 's', " logged", /*#__PURE__*/React.createElement("span", {
     className: "text-zinc-700"
   }, "  \xB7  tap date or title to edit")), /*#__PURE__*/React.createElement("div", {
+    className: "px-4 pt-2 pb-3 border-b border-zinc-900"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowSync(!showSync),
+    className: "ff-data text-[11px] uppercase tracking-widest text-zinc-400 flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement(ChevronDown, {
+    size: 14,
+    className: 'transition-transform ' + (showSync ? 'rotate-180' : '')
+  }), "Cloud Sync", /*#__PURE__*/React.createElement("span", {
+    className: 'ml-2 normal-case tracking-normal text-[10px] ' + (syncStatus === 'ok' ? 'text-emerald-400' : syncStatus === 'error' ? 'text-red-400' : syncStatus === 'syncing' ? 'text-orange-400' : 'text-zinc-600')
+  }, syncStatus === 'off' ? '(not connected)' : syncStatus === 'syncing' ? '(syncing...)' : syncStatus === 'error' ? '(error)' : syncStatus === 'ok' ? '(on)' : '(connected)')), showSync && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 space-y-2"
+  }, !syncToken ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
+    className: "ff-data text-[10px] text-zinc-500 leading-relaxed"
+  }, "Sync your history to your private GitHub repo so it is backed up and available on every device. Paste the access token you created in GitHub. It is stored only on this device and is never synced."), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    value: tokenInput,
+    onChange: e => setTokenInput(e.target.value),
+    placeholder: "github_pat_...",
+    autoComplete: "off",
+    autoCapitalize: "off",
+    autoCorrect: "off",
+    spellCheck: "false",
+    className: "ff-data w-full bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: connectSync,
+    className: "ff-display w-full text-xs font-bold uppercase tracking-widest py-2.5 bg-orange-500 text-zinc-950"
+  }, "Connect & sync")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "ff-data text-[11px] text-zinc-400"
+  }, "Connected to ", SYNC_OWNER, "/", SYNC_REPO, syncLast && /*#__PURE__*/React.createElement("span", {
+    className: "text-zinc-600"
+  }, " \xB7 last synced ", formatSyncTime(syncLast))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => runSync(dataRef.current || data, {
+      reason: 'manual'
+    }),
+    disabled: syncStatus === 'syncing',
+    className: "ff-display w-full text-xs font-bold uppercase tracking-widest py-2.5 bg-orange-500 text-zinc-950 flex items-center justify-center gap-2 disabled:opacity-50"
+  }, /*#__PURE__*/React.createElement(RotateCcw, {
+    size: 14
+  }), syncStatus === 'syncing' ? 'Syncing...' : 'Sync now'), /*#__PURE__*/React.createElement("button", {
+    onClick: disconnectSync,
+    className: "ff-display w-full text-xs font-bold uppercase tracking-widest py-2.5 border border-zinc-700 text-zinc-400"
+  }, "Disconnect this device")), syncMsg && /*#__PURE__*/React.createElement("div", {
+    className: 'ff-data text-[11px] ' + (syncStatus === 'error' ? 'text-red-400' : 'text-emerald-400')
+  }, syncMsg))), /*#__PURE__*/React.createElement("div", {
     className: "px-4 pt-2 pb-3 border-b border-zinc-900"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowExport(!showExport),
@@ -1483,13 +1973,25 @@ function App() {
   }, "Download backup (.json)"), /*#__PURE__*/React.createElement("button", {
     onClick: () => copyToClipboard(JSON.stringify(data, null, 2), 'Backup JSON copied to clipboard.'),
     className: "ff-display w-full text-xs font-bold uppercase tracking-widest py-2.5 border border-zinc-700 text-zinc-200"
-  }, "Copy backup (JSON)"), /*#__PURE__*/React.createElement("p", {
+  }, "Copy backup (JSON)"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => importInputRef.current && importInputRef.current.click(),
+    className: "ff-display w-full text-xs font-bold uppercase tracking-widest py-2.5 border border-zinc-700 text-zinc-200"
+  }, "Import backup (.json)"), /*#__PURE__*/React.createElement("input", {
+    ref: importInputRef,
+    type: "file",
+    accept: "application/json,.json",
+    className: "hidden",
+    onChange: e => {
+      importBackup(e.target.files && e.target.files[0]);
+      e.target.value = '';
+    }
+  }), /*#__PURE__*/React.createElement("p", {
     className: "ff-data text-[10px] text-zinc-600 leading-relaxed pt-1"
   }, "Text = readable log for Notes. JSON = the complete file; keep it somewhere safe as your real backup."), exportMsg && /*#__PURE__*/React.createElement("div", {
     className: "ff-data text-[11px] text-emerald-400"
-  }, exportMsg))), data.workouts.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, exportMsg))), visibleWorkouts.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "ff-data text-sm text-zinc-600 px-4 py-10 text-center"
-  }, "No saved workouts yet. Log one from the Log tab."), data.workouts.map(w => {
+  }, "No saved workouts yet. Log one from the Log tab."), visibleWorkouts.map(w => {
     const wLoc = (data.locations.find(l => l.id === w.locationId) || {}).name || '';
     return /*#__PURE__*/React.createElement("div", {
       key: w.id,
