@@ -1261,6 +1261,7 @@ function App() {
   const [showSaveRoutine, setShowSaveRoutine] = useState(false); // routine save-form open?
   const [newRoutineName, setNewRoutineName] = useState(''); // new routine name input
   const [routineMsg, setRoutineMsg] = useState(''); // routine save error text
+  const [routineNote, setRoutineNote] = useState(null); // History per-card feedback {id,text}
   const saveTimer = useRef(null);
   const dataRef = useRef(null); // always-current data, for debounced sync
   const syncTimer = useRef(null); // debounce handle for change-triggered sync
@@ -1528,6 +1529,55 @@ function App() {
     setNewRoutineName('');
     setShowSaveRoutine(false);
     setRoutineMsg('');
+  }
+
+  // Turn an existing History workout into a reusable routine: same location,
+  // same exercise lineup (order preserved, duplicates dropped).
+  function saveWorkoutAsRoutine(w) {
+    const name = (w.label || '').trim() || 'Routine ' + (w.date || '');
+    const locationId = w.locationId;
+    const seen = {};
+    const exerciseIds = [];
+    for (const e of w.entries || []) {
+      if (seen[e.exerciseId]) continue; // skip repeats of the same exercise
+      if (!data.exercises.find(x => x.id === e.exerciseId)) continue; // skip missing
+      seen[e.exerciseId] = true;
+      exerciseIds.push(e.exerciseId);
+    }
+    if (exerciseIds.length === 0) {
+      console.log('[ROUTINE] workout ' + w.id + ' has no usable exercises');
+      setRoutineNote({
+        id: w.id,
+        text: 'No exercises to save.'
+      });
+      return;
+    }
+    // Don't create a second routine with the same name at the same location.
+    const dup = data.templates.find(t => t.locationId === locationId && (t.name || '').toLowerCase() === name.toLowerCase());
+    if (dup) {
+      console.log('[ROUTINE] duplicate routine name "' + name + '" at ' + locationId + ' -- not saved');
+      setRoutineNote({
+        id: w.id,
+        text: 'A "' + name + '" routine already exists here.'
+      });
+      return;
+    }
+    const tpl = {
+      id: makeId(),
+      name: name,
+      locationId: locationId,
+      exerciseIds: exerciseIds
+    };
+    console.log('[ROUTINE] saving from workout ' + w.id + ' -> "' + name + '" (' + exerciseIds.length + ' exercise(s))');
+    persist({
+      ...data,
+      templates: [...data.templates, tpl]
+    });
+    scheduleSync();
+    setRoutineNote({
+      id: w.id,
+      text: 'Saved as routine "' + name + '".'
+    });
   }
 
   /* --- Switch training location --- */
@@ -2420,7 +2470,16 @@ function App() {
       }, " (", e.settings.trim(), ")")), /*#__PURE__*/React.createElement("span", {
         className: "ff-data text-sm text-orange-400 font-medium"
       }, value || '--'));
-    })));
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "mt-3 flex items-center gap-2 flex-wrap"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => saveWorkoutAsRoutine(w),
+      className: "ff-data text-[10px] uppercase tracking-widest text-zinc-400 flex items-center gap-1 border border-zinc-800 px-2 py-1.5"
+    }, /*#__PURE__*/React.createElement(Plus, {
+      size: 12
+    }), " Save as routine"), routineNote && routineNote.id === w.id && /*#__PURE__*/React.createElement("span", {
+      className: "ff-data text-[10px] text-orange-400"
+    }, routineNote.text)));
   }), /*#__PURE__*/React.createElement("div", {
     className: "px-4 py-6"
   }, /*#__PURE__*/React.createElement("button", {
