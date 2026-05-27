@@ -1902,6 +1902,21 @@ function App() {
   const loggedCount = data.exercises.filter(ex => ex.location === locId && entryHasData(ex, data.draft.entries[ex.id])).length;
   // Workouts shown in History: tombstoned (deleted) ones are hidden.
   const visibleWorkouts = data.workouts.filter(w => !w.deleted);
+  // Distinct recent workout names, newest first -- used for the Session quick-pick.
+  const recentSessionNames = (() => {
+    const seen = {};
+    const names = [];
+    for (const w of data.workouts) {
+      if (w.deleted) continue;
+      const nm = (w.label || '').trim();
+      if (nm && !seen[nm]) {
+        seen[nm] = true;
+        names.push(nm);
+      }
+      if (names.length >= 8) break;
+    }
+    return names;
+  })();
   return /*#__PURE__*/React.createElement("div", {
     className: "ff-app min-h-screen bg-zinc-950 text-zinc-100 flex justify-center"
   }, /*#__PURE__*/React.createElement("style", null, STYLES), /*#__PURE__*/React.createElement("div", {
@@ -2001,8 +2016,24 @@ function App() {
         label: e.target.value
       }
     }),
+    autoComplete: "off",
+    autoCorrect: "off",
     className: "ff-display w-full mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
-  }))), locTemplates.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+  }))), recentSessionNames.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
+  }, "Recent sessions"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-1.5 mt-1"
+  }, recentSessionNames.map(nm => /*#__PURE__*/React.createElement("button", {
+    key: nm,
+    onClick: () => persist({
+      ...data,
+      draft: {
+        ...data.draft,
+        label: nm
+      }
+    }),
+    className: 'ff-data text-[11px] px-2.5 py-1.5 border transition-colors ' + (data.draft.label === nm ? 'border-orange-500 bg-orange-500 text-zinc-950' : 'border-zinc-700 text-zinc-400')
+  }, nm)))), locTemplates.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
   }, "Load routine"), /*#__PURE__*/React.createElement("select", {
     value: "",
