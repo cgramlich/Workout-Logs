@@ -1258,6 +1258,9 @@ function App() {
   });
   const [showAddLoc, setShowAddLoc] = useState(false); // location add-form open?
   const [newLocName, setNewLocName] = useState(''); // new location name input
+  const [showSaveRoutine, setShowSaveRoutine] = useState(false); // routine save-form open?
+  const [newRoutineName, setNewRoutineName] = useState(''); // new routine name input
+  const [routineMsg, setRoutineMsg] = useState(''); // routine save error text
   const saveTimer = useRef(null);
   const dataRef = useRef(null); // always-current data, for debounced sync
   const syncTimer = useRef(null); // debounce handle for change-triggered sync
@@ -1489,6 +1492,42 @@ function App() {
       }
     });
     setExpanded(newExpanded);
+  }
+
+  // Save the exercises currently filled in for this session as a reusable
+  // routine, attached to the current location.
+  function saveRoutine() {
+    const name = newRoutineName.trim();
+    if (!name) {
+      setRoutineMsg('Give the routine a name.');
+      return;
+    }
+    const locationId = data.draft.locationId;
+    // Capture every exercise at this location that has data entered.
+    const exerciseIds = [];
+    for (const ex of data.exercises) {
+      if (ex.location !== locationId) continue;
+      if (entryHasData(ex, data.draft.entries[ex.id])) exerciseIds.push(ex.id);
+    }
+    if (exerciseIds.length === 0) {
+      setRoutineMsg('Log at least one exercise first, then save it as a routine.');
+      return;
+    }
+    const tpl = {
+      id: makeId(),
+      name: name,
+      locationId: locationId,
+      exerciseIds: exerciseIds
+    };
+    console.log('[ROUTINE] saving "' + name + '" at ' + locationId + ' with ' + exerciseIds.length + ' exercise(s)');
+    persist({
+      ...data,
+      templates: [...data.templates, tpl]
+    });
+    scheduleSync();
+    setNewRoutineName('');
+    setShowSaveRoutine(false);
+    setRoutineMsg('');
   }
 
   /* --- Switch training location --- */
@@ -1902,21 +1941,6 @@ function App() {
   const loggedCount = data.exercises.filter(ex => ex.location === locId && entryHasData(ex, data.draft.entries[ex.id])).length;
   // Workouts shown in History: tombstoned (deleted) ones are hidden.
   const visibleWorkouts = data.workouts.filter(w => !w.deleted);
-  // Distinct recent workout names, newest first -- used for the Session quick-pick.
-  const recentSessionNames = (() => {
-    const seen = {};
-    const names = [];
-    for (const w of data.workouts) {
-      if (w.deleted) continue;
-      const nm = (w.label || '').trim();
-      if (nm && !seen[nm]) {
-        seen[nm] = true;
-        names.push(nm);
-      }
-      if (names.length >= 8) break;
-    }
-    return names;
-  })();
   return /*#__PURE__*/React.createElement("div", {
     className: "ff-app min-h-screen bg-zinc-950 text-zinc-100 flex justify-center"
   }, /*#__PURE__*/React.createElement("style", null, STYLES), /*#__PURE__*/React.createElement("div", {
@@ -2019,32 +2043,50 @@ function App() {
     autoComplete: "off",
     autoCorrect: "off",
     className: "ff-display w-full mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
-  }))), recentSessionNames.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
-  }, "Recent sessions"), /*#__PURE__*/React.createElement("div", {
+  }, "Routines"), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap gap-1.5 mt-1"
-  }, recentSessionNames.map(nm => /*#__PURE__*/React.createElement("button", {
-    key: nm,
-    onClick: () => persist({
-      ...data,
-      draft: {
-        ...data.draft,
-        label: nm
-      }
-    }),
-    className: 'ff-data text-[11px] px-2.5 py-1.5 border transition-colors ' + (data.draft.label === nm ? 'border-orange-500 bg-orange-500 text-zinc-950' : 'border-zinc-700 text-zinc-400')
-  }, nm)))), locTemplates.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "ff-data text-[10px] uppercase tracking-widest text-zinc-500"
-  }, "Load routine"), /*#__PURE__*/React.createElement("select", {
-    value: "",
-    onChange: e => loadTemplate(e.target.value),
-    className: "ff-data w-full mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "-- pick a routine to load --"), locTemplates.map(t => /*#__PURE__*/React.createElement("option", {
+  }, locTemplates.map(t => /*#__PURE__*/React.createElement("button", {
     key: t.id,
-    value: t.id
-  }, t.name))))), CATEGORY_ORDER.map(cat => {
+    onClick: () => loadTemplate(t.id),
+    className: 'ff-data text-[11px] px-2.5 py-1.5 border transition-colors ' + (data.draft.label === t.name ? 'border-orange-500 bg-orange-500 text-zinc-950' : 'border-zinc-700 text-zinc-400')
+  }, t.name)), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setShowSaveRoutine(true);
+      setNewRoutineName('');
+      setRoutineMsg('');
+    },
+    className: "ff-data text-[11px] px-2.5 py-1.5 border border-dashed border-zinc-700 text-zinc-500 flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement(Plus, {
+    size: 11
+  }), " Save as routine")), locTemplates.length === 0 && !showSaveRoutine && /*#__PURE__*/React.createElement("p", {
+    className: "ff-data text-[10px] text-zinc-600 mt-1.5 leading-relaxed"
+  }, "No routines here yet. Fill in the exercises you want, then tap \"Save as routine\" to reuse that lineup with one tap."), showSaveRoutine && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 space-y-2"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "ff-data text-[10px] text-zinc-500 leading-relaxed"
+  }, "Saves the exercises you've filled in below into a reusable routine for ", locName, "."), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newRoutineName,
+    onChange: e => setNewRoutineName(e.target.value),
+    placeholder: "Routine name",
+    autoComplete: "off",
+    className: "ff-data flex-1 bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm px-2 py-2 focus:border-orange-500 focus:outline-none"
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: saveRoutine,
+    className: "ff-display bg-orange-500 text-zinc-950 text-xs font-bold uppercase tracking-widest px-3 py-2"
+  }, "Save"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setShowSaveRoutine(false);
+      setRoutineMsg('');
+    },
+    className: "ff-display border border-zinc-700 text-zinc-400 text-xs font-bold uppercase tracking-widest px-3 py-2"
+  }, "Cancel")), routineMsg && /*#__PURE__*/React.createElement("div", {
+    className: "ff-data text-[11px] text-red-400"
+  }, routineMsg)))), CATEGORY_ORDER.map(cat => {
     const inCat = data.exercises.filter(e => e.cat === cat && e.location === locId);
     if (inCat.length === 0) return null;
     return /*#__PURE__*/React.createElement("section", {
